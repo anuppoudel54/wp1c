@@ -1,0 +1,32 @@
+version: '3'
+services:
+  # MySQL
+  mysql:
+    container_name: wp1c_mysql
+    build: 
+      context: ./database
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3307:3306"
+    networks:
+      - wp
+  
+
+  # Nginx
+  nginx:
+    container_name: wp1c_nginx
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./utils/docker-data/nginx/conf.d:/etc/nginx/conf.d
+    networks:
+      - wp
+
+networks:
+  wp:

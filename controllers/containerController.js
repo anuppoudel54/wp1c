@@ -4,11 +4,13 @@ const { generateRandomUsername, generateRandomPassword } = require('../utils/ran
 const { createDatabaseAndUserForInstance } = require('../services/databaseService');
 const { createNginxConfig } = require('../utils/nginxUtils');
 const { spawn } = require('child_process');
+const { env } = require('process');
 const dbUserLength=12
 const passLength=12
 async function createContainer(req, res) {
+    console.log(req.body)
     const { hostname } = req.body;
-    const imageName = 'wordpress'; // Replace with the image you want to use
+    const imageName = 'wordpress'; 
 
     // Validate the hostname
     const checkHostnameQuery = 'SELECT COUNT(*) AS count FROM containers WHERE hostname = ?';
@@ -67,7 +69,7 @@ async function createContainer(req, res) {
                 '--name',
                 hostname,
                 '--network',
-                'wp',
+                'wp1c_wp',
                 '--env',
                 `WORDPRESS_DB_NAME=${databaseName}`,
                 '--env',
@@ -75,7 +77,7 @@ async function createContainer(req, res) {
                 '--env',
                 `WORDPRESS_DB_PASSWORD=${dbPassword}`,
                 '--env',
-                `WORDPRESS_DB_HOST=mysql`,
+                `WORDPRESS_DB_HOST=${process.env.NEW_DB_HOST}`,
                 imageName
             ]);
             dockerCreateProcess.stdout.on('data', async (data) => {
@@ -104,7 +106,7 @@ async function createContainer(req, res) {
                     await pool.execute(query, values);
 
                     console.log('Container created successfully', { containerId, portDetails });
-                    res.status(200).json({ message: 'Container created successfully.', portDetails });
+                    res.status(200).json({ message: 'Container created successfully.', portDetails ,containerId});
                 });
 
                 dockerInspectProcess.stderr.on('data', (inspectError) => {
