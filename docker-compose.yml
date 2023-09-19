@@ -1,6 +1,5 @@
 version: '3'
 services:
-  # MySQL
   mysql:
     container_name: wp1c_mysql
     build: 
@@ -16,8 +15,6 @@ services:
     networks:
       - wp
   
-
-  # Nginx
   nginx:
     container_name: wp1c_nginx
     image: nginx:latest

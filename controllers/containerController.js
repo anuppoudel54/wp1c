@@ -4,7 +4,6 @@ const { generateRandomUsername, generateRandomPassword } = require('../utils/ran
 const { createDatabaseAndUserForInstance } = require('../services/databaseService');
 const { createNginxConfig } = require('../utils/nginxUtils');
 const { spawn } = require('child_process');
-const { env } = require('process');
 const dbUserLength=12
 const passLength=12
 async function createContainer(req, res) {
