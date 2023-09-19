@@ -2,24 +2,27 @@ version: '3'
 services:
   # Node.js application
   app:
+    container_name: wp1c_app
     build:
       context: .
     ports:
       - "3000:3000"
     depends_on:
       - mysql
+    networks:
+      - wp
     
 
   # MySQL
   mysql:
+    container_name: wp1c_mysql
     build: 
-      context: .
-      dockerfile: database/Dockerfile
+      context: ./database
+      dockerfile: Dockerfile
     env_file: .env
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
       - "3307:3306"
@@ -29,6 +32,7 @@ services:
 
   # Nginx
   nginx:
+    container_name: wp1c_nginx
     image: nginx:latest
     ports:
       - "80:80"

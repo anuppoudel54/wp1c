@@ -2,6 +2,6 @@
 FROM mysql:latest
 
 # Copy SQL script with table creation statements to the container
-COPY init.sql /docker-entrypoint-initdb.d/
+COPY ./init.sql /docker-entrypoint-initdb.d/
 
 
