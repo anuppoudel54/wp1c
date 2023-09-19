@@ -1,18 +1,5 @@
 version: '3'
 services:
-  # Node.js application
-  app:
-    container_name: wp1c_app
-    build:
-      context: .
-    ports:
-      - "3000:3000"
-    depends_on:
-      - mysql
-    networks:
-      - wp
-    
-
   # MySQL
   mysql:
     container_name: wp1c_mysql
