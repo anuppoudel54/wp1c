@@ -14,7 +14,6 @@ function createNginxConfig(hostname) {
     
     
     nginxReloadProcess.on('close', (code) => {
-        console.log(code)
         if (code === 0) {
             console.log('Nginx configuration reloaded successfully.');
         } else {

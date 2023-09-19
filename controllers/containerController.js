@@ -8,7 +8,6 @@ const { env } = require('process');
 const dbUserLength=12
 const passLength=12
 async function createContainer(req, res) {
-    console.log(req.body)
     const { hostname } = req.body;
     const imageName = 'wordpress'; 
 
