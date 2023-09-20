@@ -20,6 +20,7 @@ async function createDatabaseAndUserForInstance(databaseName, username, password
         await pool.query(grantPrivilegesQuery);
 
         console.log(`Privileges granted to user ${username} on ${databaseName}.`);
+        return true;
     } catch (error) {
         console.error(`Error creating database or user: ${error}`);
     }}
