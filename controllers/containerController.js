@@ -43,7 +43,7 @@ async function createContainer(req, res) {
             const query = 'INSERT INTO containers (hostname, container_id, ports, created_at) VALUES (?, ?, ?, NOW())';
             const values = [hostname, container.id, ports];
             await pool.execute(query, values);
-            createNginxConfig(hostname);
+            createNginxConfig(hostname,docker);
        
             console.log('Container created successfully', { containerId: container.id, ports });
             res.status(200).json({ message: 'Container created successfully.', ports, containerId: container.id });
