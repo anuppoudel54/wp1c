@@ -9,7 +9,7 @@ const passLength = 12;
 
 async function createContainer(req, res) {
     const { hostname } = req.body;
-    const imageName = 'wordpress';
+    const imageName = 'wordpress:latest';
 
     try {
         const docker = createDockerInstance();
@@ -71,7 +71,7 @@ async function createDockerContainer(docker, imageName, hostname, databaseName, 
             `WORDPRESS_DB_NAME=${databaseName}`,
             `WORDPRESS_DB_USER=${dbUsername}`,
             `WORDPRESS_DB_PASSWORD=${dbPassword}`,
-            `WORDPRESS_DB_HOST=${process.env.NEW_DB_HOST}`,
+            `WORDPRESS_DB_HOST=${process.env.DB_HOST}`,
         ],
     };
 
