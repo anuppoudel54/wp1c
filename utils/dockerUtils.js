@@ -12,7 +12,7 @@ async function checkDockerImageExists(docker, imageName) {
             if (err) {
                 reject(err);
             } else {
-                const imageExists = images.some((image) => image.RepoTags.includes(imageName));
+                const imageExists = images.some((image) => image.RepoTags?.includes(imageName));
                 resolve(imageExists);
             }
         });
