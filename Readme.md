@@ -33,7 +33,7 @@ Before proceeding with the setup, ensure that you have the following installed:
 
 3. **Access wordpress site**
 
-   Once the container is created, open your browser and navigate to http://name.wp.local. You should see the WordPress site.
+   Once the container is created, open your browser and navigate to http://name.wp.local. You should see the WordPress site. Replace name with your container name
 
 ## Notes
 
