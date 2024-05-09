@@ -6,15 +6,16 @@ WORKDIR /app
 
 # Copy package.json and package-lock.json to the working directory
 COPY package*.json ./
+COPY entry.sh ./
 
 # Install application dependencies
-RUN npm install
+# RUN npm install
 
 # Copy the rest of the application source code to the working directory
-COPY . .
+# COPY . .
 
 # Expose the port your application will run on
 EXPOSE 3000
 
 # Define the command to run your application
-CMD ["node", "app.js"]
+ENTRYPOINT [ "sh","entry.sh" ]
