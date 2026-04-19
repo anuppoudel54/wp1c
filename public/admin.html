@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WP1C | Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .admin-layout { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            background: rgba(255,255,255,0.07);
+            transform: translateY(-2px);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .admin-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .admin-section h3 {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .admin-table th {
+            text-align: left;
+            color: var(--text-muted);
+            font-weight: 500;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .admin-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            vertical-align: middle;
+        }
+        .admin-table tr:hover td {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 1rem;
+            font-weight: 500;
+        }
+        .badge-admin { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .badge-user { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+        .badge-running { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .badge-stopped { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .badge-pending { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .badge-failed { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .badge-missing { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--text); }
+
+        .toggle-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text);
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toggle-btn:hover {
+            background: rgba(139, 92, 246, 0.15);
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .refresh-btn {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .refresh-btn:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            .admin-table { font-size: 0.8rem; }
+            .admin-table th, .admin-table td { padding: 0.5rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="blob-bg"></div>
+    <div class="blob-bg blob-2"></div>
+
+    <div class="admin-layout">
+        <a href="/" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="margin: 0;">Admin Dashboard</h2>
+            <button class="refresh-btn" onclick="loadAll()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">Total Users</div></div>
+            <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">Containers</div></div>
+            <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">Running</div></div>
+            <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">Stopped</div></div>
+            <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">WP Volumes</div></div>
+            <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">Image Size</div></div>
+        </div>
+
+        <!-- Users -->
+        <div class="admin-section">
+            <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Users
+            </h3>
+            <table class="admin-table">
+                <thead>
+                    <tr><th>ID</th><th>Username</th><th>Role</th><th>Containers</th><th>Joined</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="usersTable">
+                    <tr><td colspan="6" style="text-align:center; color: var(--text-muted);">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- All Containers -->
+        <div class="admin-section">
+            <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                All Containers
+            </h3>
+            <table class="admin-table">
+                <thead>
+                    <tr><th>Hostname</th><th>Owner</th><th>Status</th><th>Container ID</th><th>Created</th></tr>
+                </thead>
+                <tbody id="containersTable">
+                    <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('wp1c_token');
+        if (!token) { window.location.href = '/'; }
+
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/admin/stats', { headers });
+                if (res.status === 403) { window.location.href = '/'; return; }
+                const data = await res.json();
+                const grid = document.getElementById('statsGrid');
+                grid.innerHTML = `
+                    <div class="stat-card"><div class="stat-value">${data.users}</div><div class="stat-label">Total Users</div></div>
+                    <div class="stat-card"><div class="stat-value">${data.containers}</div><div class="stat-label">Containers</div></div>
+                    <div class="stat-card"><div class="stat-value">${data.dockerRunning}</div><div class="stat-label">Running</div></div>
+                    <div class="stat-card"><div class="stat-value">${data.dockerStopped}</div><div class="stat-label">Stopped</div></div>
+                    <div class="stat-card"><div class="stat-value">${data.wpVolumes}</div><div class="stat-label">WP Volumes</div></div>
+                    <div class="stat-card"><div class="stat-value">${data.totalImageSizeMB}MB</div><div class="stat-label">Image Size</div></div>
+                `;
+            } catch (e) { console.error('Failed to load stats:', e); }
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/admin/users', { headers });
+                const data = await res.json();
+                const tbody = document.getElementById('usersTable');
+                if (!data.users.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">No users found.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.users.map(u => `
+                    <tr>
+                        <td>${u.id}</td>
+                        <td style="font-weight: 500;">${u.username}</td>
+                        <td><span class="badge ${u.is_admin ? 'badge-admin' : 'badge-user'}">${u.is_admin ? 'Admin' : 'User'}</span></td>
+                        <td>${u.container_count}</td>
+                        <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                        <td><button class="toggle-btn" onclick="toggleAdmin(${u.id})">${u.is_admin ? 'Revoke Admin' : 'Make Admin'}</button></td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error('Failed to load users:', e); }
+        }
+
+        async function loadContainers() {
+            try {
+                const res = await fetch('/api/admin/containers', { headers });
+                const data = await res.json();
+                const tbody = document.getElementById('containersTable');
+                if (!data.containers.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">No containers found.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.containers.map(c => {
+                    const badgeClass = c.status === 'running' ? 'badge-running' : 
+                                       c.status === 'exited' ? 'badge-stopped' : 
+                                       c.status === 'pending' ? 'badge-pending' : 
+                                       c.status === 'failed' ? 'badge-failed' : 'badge-missing';
+                    return `
+                        <tr>
+                            <td style="font-weight: 500;">${c.hostname}.wp.local</td>
+                            <td>${c.owner}</td>
+                            <td><span class="badge ${badgeClass}">${c.status}</span></td>
+                            <td style="font-family: monospace; font-size: 0.8rem;">${c.container_id === 'pending' || c.container_id === 'failed' ? c.container_id : c.container_id.substring(0, 12)}</td>
+                            <td>${new Date(c.created_at).toLocaleDateString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (e) { console.error('Failed to load containers:', e); }
+        }
+
+        async function toggleAdmin(id) {
+            try {
+                const res = await fetch(`/api/admin/toggle-admin/${id}`, { method: 'POST', headers });
+                if (!res.ok) {
+                    const data = await res.json();
+                    alert(data.message || 'Failed');
+                    return;
+                }
+                loadUsers();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        function loadAll() {
+            loadStats();
+            loadUsers();
+            loadContainers();
+        }
+
+        loadAll();
+    </script>
+</body>
+</html>

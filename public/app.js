@@ -1,6 +1,7 @@
 let currentAuthMode = 'login';
 let userToken = localStorage.getItem('wp1c_token');
 let username = localStorage.getItem('wp1c_username');
+let isAdmin = localStorage.getItem('wp1c_is_admin') === 'true';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,6 +31,13 @@ function showDashboard() {
     document.getElementById('navbar').classList.remove('hidden');
     
     document.getElementById('usernameDisplay').textContent = `Hello, ${username}`;
+    
+    // Show admin link if user is admin
+    const adminLink = document.getElementById('adminLink');
+    if (adminLink) {
+        adminLink.style.display = isAdmin ? 'inline-flex' : 'none';
+    }
+    
     fetchContainers();
 }
 
@@ -71,8 +79,10 @@ async function handleAuth(e) {
         if (currentAuthMode === 'login') {
             userToken = data.token;
             username = data.username;
+            isAdmin = !!data.is_admin;
             localStorage.setItem('wp1c_token', userToken);
             localStorage.setItem('wp1c_username', username);
+            localStorage.setItem('wp1c_is_admin', isAdmin.toString());
             showDashboard();
         } else {
             // Auto switch to login after register
@@ -97,8 +107,10 @@ async function handleAuth(e) {
 function logout() {
     userToken = null;
     username = null;
+    isAdmin = false;
     localStorage.removeItem('wp1c_token');
     localStorage.removeItem('wp1c_username');
+    localStorage.removeItem('wp1c_is_admin');
     showAuth();
 }
 

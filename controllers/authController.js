@@ -43,8 +43,8 @@ async function login(req, res) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        res.status(200).json({ token, username: user.username });
+        const token = jwt.sign({ id: user.id, username: user.username, is_admin: !!user.is_admin }, JWT_SECRET, { expiresIn: '24h' });
+        res.status(200).json({ token, username: user.username, is_admin: !!user.is_admin });
     } catch (error) {
         console.error('Error during login:', error);
         res.status(500).json({ message: 'Failed to log in' });

@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_for_now';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is not set. Exiting.');
+    process.exit(1);
+}
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -15,4 +19,11 @@ function authenticateToken(req, res, next) {
     });
 }
 
-module.exports = { authenticateToken, JWT_SECRET };
+function requireAdmin(req, res, next) {
+    if (!req.user || !req.user.is_admin) {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+}
+
+module.exports = { authenticateToken, requireAdmin, JWT_SECRET };

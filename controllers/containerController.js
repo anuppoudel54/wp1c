@@ -17,8 +17,15 @@ async function createContainer(req, res) {
     
     const imageName = 'wordpress:latest';
     const userId = req.user.id;
+    const MAX_CONTAINERS_PER_USER = 5;
 
     try {
+        // Enforce per-user container quota
+        const [quotaRows] = await pool.execute('SELECT COUNT(*) AS count FROM containers WHERE user_id = ?', [userId]);
+        if (quotaRows[0].count >= MAX_CONTAINERS_PER_USER) {
+            return res.status(429).json({ message: `You have reached the maximum of ${MAX_CONTAINERS_PER_USER} containers. Please delete one before creating a new one.` });
+        }
+
         const checkHostnameQuery = 'SELECT COUNT(*) AS count FROM containers WHERE hostname = ?';
         const hostnameExists = await checkHostnameExists(checkHostnameQuery, hostname);
 
@@ -110,7 +117,10 @@ async function createDockerContainer(docker, imageName, hostname, databaseName, 
         name: hostname,
         HostConfig: {
             NetworkMode: 'wp1c_wp',
-            Binds: [`wp_data_${hostname}:/var/www/html/wp-content`]
+            Binds: [`wp_data_${hostname}:/var/www/html/wp-content`],
+            Memory: 256 * 1024 * 1024,       // 256MB hard limit
+            MemorySwap: 512 * 1024 * 1024,   // 512MB including swap
+            CpuShares: 256,                   // Relative CPU weight (default is 1024)
         },
         Env: [
             `WORDPRESS_DB_NAME=${databaseName}`,
