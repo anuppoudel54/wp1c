@@ -8,8 +8,11 @@ const port = 3000;
 app.use(bodyParser.json());
 app.use(cors());
 
+// Serve static frontend files
+app.use(express.static('public'));
+
 const routes = require('./routes');
-app.use('/', routes);
+app.use('/api', routes);
 
 app.listen(port, () => {
     console.log(`Backend server is running on port ${port}`);

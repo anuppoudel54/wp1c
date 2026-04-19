@@ -3,7 +3,9 @@ server {
     listen 80;
 
     server_name HOSTNAME.wp.local;
-
+    # Use Docker's internal DNS resolver to prevent crash on reload
+    resolver 127.0.0.11 valid=30s;
+    set $upstream http://HOSTNAME:80;
     root /var/www/html;
     index index.php;
 
@@ -41,7 +43,7 @@ server {
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Host $host;
-        proxy_pass http://HOSTNAME:80;
+        proxy_pass $upstream;
     }
 
     location ~[^?]*/$ {
@@ -49,7 +51,7 @@ server {
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Host $host;
-        proxy_pass http://HOSTNAME:80;
+        proxy_pass $upstream;
     }
 
     location ~ \.php$ {
@@ -57,7 +59,7 @@ server {
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Host $host;
-        proxy_pass http://HOSTNAME:80;
+        proxy_pass $upstream;
     }
 
     location ~/\. {
@@ -65,4 +67,4 @@ server {
         access_log off;
         log_not_found off;
     }
-} 
+}

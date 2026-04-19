@@ -65,4 +65,36 @@ function createNginxConfig(hostname, docker) {
     
 }
 
-module.exports = { createNginxConfig };
+function deleteNginxConfig(hostname, docker) {
+    const configPath = path.join(__dirname, `docker-data/nginx/conf.d/${hostname}.conf`);
+    if (fs.existsSync(configPath)) {
+        fs.unlinkSync(configPath);
+    }
+    
+    const containerName = 'wp1c_nginx';
+    const command = ['nginx', '-s', 'reload'];
+
+    docker.getContainer(containerName).exec(
+        {
+            Cmd: command,
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: false,
+        },
+        (err, exec) => {
+            if (err) return;
+            exec.start((err, stream) => {
+                if (err) return;
+                stream.on('end', () => {
+                    exec.inspect((err, data) => {
+                        if (!err && data.ExitCode === 0) {
+                            console.log('Nginx config removed and reloaded.');
+                        }
+                    });
+                });
+            });
+        }
+    );
+}
+
+module.exports = { createNginxConfig, deleteNginxConfig };

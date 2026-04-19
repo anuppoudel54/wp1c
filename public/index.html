@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WP1C | WordPress Container Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="blob-bg"></div>
+    <div class="blob-bg blob-2"></div>
+    
+    <nav class="navbar hidden" id="navbar">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12A10 10 0 0 0 12 2v10z"></path><path d="M12 22a10 10 0 0 0 10-10H12z"></path><path d="M2 12a10 10 0 0 0 10 10V2a10 10 0 0 0-10 10z"></path></svg>
+            WP1C Dashboard
+        </div>
+        <div class="user-info">
+            <span id="usernameDisplay"></span>
+            <button id="logoutBtn" class="btn btn-secondary btn-sm">Log out</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Auth View -->
+        <div id="authView" class="view card active">
+            <div class="auth-header">
+                <h2>Welcome to WP1C</h2>
+                <p>Manage your WordPress containers effortlessly</p>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="switchAuthTab('login')">Login</button>
+                <button class="tab" onclick="switchAuthTab('register')">Register</button>
+            </div>
+
+            <form id="authForm" onsubmit="handleAuth(event)">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter your username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required>
+                </div>
+                <div id="authError" class="error-msg hidden"></div>
+                <button type="submit" class="btn btn-primary btn-block mt-4" id="authSubmitBtn">Log In</button>
+            </form>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboardView" class="view hidden">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Your Containers</h2>
+                    <p>Create and manage your WordPress instances</p>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                    New Container
+                </button>
+            </div>
+
+            <div class="grid" id="containersGrid">
+                <!-- Containers will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div id="createModal" class="modal-overlay">
+        <div class="modal card">
+            <div class="modal-header">
+                <h3>Create New Container</h3>
+                <button class="close-btn" onclick="closeCreateModal()">&times;</button>
+            </div>
+            <form id="createForm" onsubmit="handleCreateContainer(event)">
+                <div class="form-group">
+                    <label for="hostname">Hostname</label>
+                    <div class="input-with-suffix">
+                        <input type="text" id="hostname" placeholder="e.g. my-awesome-blog" pattern="[a-zA-Z0-9-]+" title="Only alphanumeric characters and hyphens allowed" required>
+                        <span class="suffix">.wp.local</span>
+                    </div>
+                    <small>This will be your local domain name.</small>
+                </div>
+                <div id="createError" class="error-msg hidden"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="createSubmitBtn">Create Instance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div id="deleteModal" class="modal-overlay">
+        <div class="modal card">
+            <div class="modal-header">
+                <h3>Delete Container</h3>
+                <button class="close-btn" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div style="margin-bottom: 1.5rem; color: var(--text-muted);">
+                Are you sure you want to delete this container? This action cannot be undone and all data will be permanently lost.
+            </div>
+            <div id="deleteError" class="error-msg hidden"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" style="background: var(--danger); border-color: var(--danger);" id="deleteConfirmBtn" onclick="executeDelete()">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

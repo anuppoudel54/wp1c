@@ -1,7 +1,7 @@
 const pool = require('../config/dbConfig');
 const { generateRandomUsername, generateRandomPassword } = require('../utils/randomUtils');
-const { createDatabaseAndUserForInstance } = require('../services/databaseService');
-const { createNginxConfig } = require('../utils/nginxUtils');
+const { createDatabaseAndUserForInstance, deleteDatabaseAndUserForInstance } = require('../services/databaseService');
+const { createNginxConfig, deleteNginxConfig } = require('../utils/nginxUtils');
 const { createDockerInstance, checkDockerImageExists, pullDockerImage } = require('../utils/dockerUtils');
 
 const dbUserLength = 12;
@@ -10,28 +10,48 @@ const passLength = 12;
 async function createContainer(req, res) {
     const { hostname } = req.body;
     const imageName = 'wordpress:latest';
+    const userId = req.user.id;
 
     try {
-        const docker = createDockerInstance();
         const checkHostnameQuery = 'SELECT COUNT(*) AS count FROM containers WHERE hostname = ?';
-        const dbUsername = generateRandomUsername(hostname, dbUserLength);
-        const dbPassword = generateRandomPassword(passLength);
-        const databaseName = `${hostname}_db`;
-
         const hostnameExists = await checkHostnameExists(checkHostnameQuery, hostname);
 
         if (hostnameExists) {
             console.log('Hostname already exists.', hostname);
             return res.status(400).json({ message: 'Hostname already exists.' });
         }
-       
+        
+        // Insert initial pending record
+        const insertQuery = 'INSERT INTO containers (user_id, hostname, container_id, ports, created_at) VALUES (?, ?, ?, ?, NOW())';
+        const [insertResult] = await pool.execute(insertQuery, [userId, hostname, 'pending', '']);
+        const recordId = insertResult.insertId;
+
+        // Respond immediately
+        res.status(202).json({ message: 'Request submitted. Container is being created in the background.' });
+
+        // Run background task
+        runBackgroundCreation(hostname, imageName, recordId).catch(err => {
+            console.error('Background creation failed:', err);
+        });
+
+    } catch (error) {
+        console.error(`Error initiating container creation: ${error}`);
+        res.status(500).json({ message: 'Failed to initiate container creation.' });
+    }
+}
+
+async function runBackgroundCreation(hostname, imageName, recordId) {
+    const dbUsername = generateRandomUsername(hostname, dbUserLength);
+    const dbPassword = generateRandomPassword(passLength);
+    const databaseName = `${hostname}_db`;
+    
+    try {
+        const docker = createDockerInstance();
+        
         const databaseAndUserForInstance = await createDatabaseAndUserForInstance(databaseName, dbUsername, dbPassword);
-        if(!databaseAndUserForInstance){
-            return res.status(500).json({ message: 'Failed to create database and user.' });
-        }
+        if(!databaseAndUserForInstance) throw new Error('Failed to create DB/User');
 
         const imageExists = await checkDockerImageExists(docker, imageName);
-
         if (!imageExists) {
             await pullDockerImage(docker, imageName);
         }
@@ -40,19 +60,15 @@ async function createContainer(req, res) {
 
         if (container) {
             const ports = await getContainerPortDetails(container);
-            const query = 'INSERT INTO containers (hostname, container_id, ports, created_at) VALUES (?, ?, ?, NOW())';
-            const values = [hostname, container.id, ports];
-            await pool.execute(query, values);
-            createNginxConfig(hostname,docker);
-       
-            console.log('Container created successfully', { containerId: container.id, ports });
-            res.status(200).json({ message: 'Container created successfully.', ports, containerId: container.id });
+            await pool.execute('UPDATE containers SET container_id = ?, ports = ? WHERE id = ?', [container.id, ports, recordId]);
+            createNginxConfig(hostname, docker);
+            console.log('Background container created successfully', { containerId: container.id, ports });
         } else {
-            return res.status(500).json({ message: 'Failed to create the Docker container.' });
+            throw new Error('Docker container creation returned null');
         }
     } catch (error) {
-        console.error(`Error creating container or inserting into the database: ${error}`);
-        res.status(500).json({ message: 'Failed to create container or record data.' });
+        console.error(`Background task error for ${hostname}:`, error);
+        await pool.execute('UPDATE containers SET container_id = ?, ports = ? WHERE id = ?', ['failed', '', recordId]);
     }
 }
 
@@ -66,7 +82,9 @@ async function createDockerContainer(docker, imageName, hostname, databaseName, 
     const containerOptions = {
         Image: imageName,
         name: hostname,
-        NetworkMode: 'wp1c_wp',
+        HostConfig: {
+            NetworkMode: 'wp1c_wp',
+        },
         Env: [
             `WORDPRESS_DB_NAME=${databaseName}`,
             `WORDPRESS_DB_USER=${dbUsername}`,
@@ -108,4 +126,69 @@ async function getContainerPortDetails(container) {
     });
 }
 
-module.exports = { createContainer };
+async function getMyContainers(req, res) {
+    try {
+        const userId = req.user.id;
+        const [rows] = await pool.execute('SELECT id, hostname, container_id, ports, created_at FROM containers WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+        res.json({ containers: rows });
+    } catch (error) {
+        console.error('Error fetching containers:', error);
+        res.status(500).json({ message: 'Failed to fetch containers' });
+    }
+}
+
+async function deleteContainer(req, res) {
+    const { id } = req.params;
+    const userId = req.user.id;
+    try {
+        const [rows] = await pool.execute('SELECT * FROM containers WHERE id = ? AND user_id = ?', [id, userId]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Container not found or unauthorized' });
+        }
+        const containerRecord = rows[0];
+        const docker = createDockerInstance();
+        
+        // Always delete Nginx config
+        deleteNginxConfig(containerRecord.hostname, docker);
+        
+        // Always try to drop the database, since we know its name format
+        const dbName = `${containerRecord.hostname}_db`;
+        await deleteDatabaseAndUserForInstance(dbName, null);
+        
+        // Remove from docker and drop user if it has a real ID
+        if (containerRecord.container_id && containerRecord.container_id !== 'pending' && containerRecord.container_id !== 'failed') {
+            const container = docker.getContainer(containerRecord.container_id);
+            try {
+                // Inspect container to find database user
+                const info = await new Promise((resolve, reject) => {
+                    container.inspect((err, data) => err ? reject(err) : resolve(data));
+                });
+                
+                const env = info.Config.Env || [];
+                let dbUser = null;
+                for (const e of env) {
+                    if (e.startsWith('WORDPRESS_DB_USER=')) dbUser = e.split('=')[1];
+                }
+                
+                await container.stop();
+                await container.remove();
+                
+                if (dbUser) {
+                    await deleteDatabaseAndUserForInstance(null, dbUser);
+                }
+            } catch (err) {
+                console.error('Error stopping/removing docker container or dropping user:', err);
+            }
+        }
+        
+        // Remove from database
+        await pool.execute('DELETE FROM containers WHERE id = ?', [id]);
+        
+        res.status(200).json({ message: 'Container deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting container:', error);
+        res.status(500).json({ message: 'Failed to delete container' });
+    }
+}
+
+module.exports = { createContainer, getMyContainers, deleteContainer };

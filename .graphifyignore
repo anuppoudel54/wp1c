@@ -9,6 +9,8 @@ package-lock.json
 
 # Ignore graphify files
 graphify-out/
+.graphifyignore
 
-# Ignore AI agent internal folder
+# Ignore git dir
+.git/
 .agent/

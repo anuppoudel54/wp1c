@@ -23,6 +23,22 @@ async function createDatabaseAndUserForInstance(databaseName, username, password
         return true;
     } catch (error) {
         console.error(`Error creating database or user: ${error}`);
-    }}
+    }
+}
 
-module.exports = { createDatabaseAndUserForInstance };
+async function deleteDatabaseAndUserForInstance(databaseName, username) {
+    try {
+        if (databaseName) {
+            await pool.query(`DROP DATABASE IF EXISTS \`${databaseName}\`;`);
+            console.log(`Database ${databaseName} dropped successfully.`);
+        }
+        if (username) {
+            await pool.query(`DROP USER IF EXISTS '${username}'@'%';`);
+            console.log(`User ${username} dropped successfully.`);
+        }
+    } catch (error) {
+        console.error(`Error dropping database or user: ${error}`);
+    }
+}
+
+module.exports = { createDatabaseAndUserForInstance, deleteDatabaseAndUserForInstance };
