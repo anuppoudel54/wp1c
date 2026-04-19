@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS containers (
     user_id INT NOT NULL,
     hostname VARCHAR(255) NOT NULL,
     container_id VARCHAR(255) NOT NULL,
-    ports TEXT,
+    ports VARCHAR(255) NOT NULL,
+    wp_admin_password VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

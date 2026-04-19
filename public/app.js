@@ -160,10 +160,17 @@ function renderContainers(containers) {
         const isFailed = c.container_id === 'failed';
         
         let statusBadge = '';
+        const isRunning = c.status === 'running';
+        const isStopped = c.status === 'exited' || c.status === 'created';
+        
         if (isPending) {
             statusBadge = '<span style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: var(--primary); padding: 0.2rem 0.5rem; border-radius: 1rem; margin-left: 0.5rem;">Creating...</span>';
         } else if (isFailed) {
             statusBadge = '<span style="font-size: 0.75rem; background: rgba(239, 68, 68, 0.2); color: var(--danger); padding: 0.2rem 0.5rem; border-radius: 1rem; margin-left: 0.5rem;">Failed</span>';
+        } else if (isRunning) {
+            statusBadge = '<span style="font-size: 0.75rem; background: rgba(16, 185, 129, 0.2); color: var(--success); padding: 0.2rem 0.5rem; border-radius: 1rem; margin-left: 0.5rem;">Running</span>';
+        } else if (isStopped) {
+            statusBadge = '<span style="font-size: 0.75rem; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 0.2rem 0.5rem; border-radius: 1rem; margin-left: 0.5rem;">Stopped</span>';
         }
 
         const card = document.createElement('div');
@@ -182,10 +189,18 @@ function renderContainers(containers) {
                     <span class="meta-label">ID</span>
                     <span class="meta-val">${isPending ? 'pending' : isFailed ? 'N/A' : c.container_id.substring(0, 8) + '...'}</span>
                 </div>
-                <div class="meta-row">
-                    <span class="meta-label">Ports</span>
-                    <span class="meta-val">${c.ports || 'N/A'}</span>
+                ${c.wp_admin_password ? `
+                <div class="meta-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <span class="meta-label">WP Admin User</span>
+                    <span class="meta-val" style="color: var(--primary);">admin</span>
                 </div>
+                <div class="meta-row" style="align-items: center;">
+                    <span class="meta-label">WP Admin Pass</span>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="meta-val" style="font-family: monospace; color: var(--success);">${c.wp_admin_password}</span>
+                        <button class="btn btn-secondary btn-sm" onclick="dismissPassword(${c.id})" title="Hide password permanently" style="padding: 0.1rem 0.4rem; font-size: 0.7rem;">Dismiss</button>
+                    </div>
+                </div>` : ''}
             </div>
             
             <div class="container-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -194,8 +209,16 @@ function renderContainers(containers) {
                   isFailed ? 
                   `<span style="flex: 1; display:block; text-align:center; color: var(--text-muted); padding: 0.5rem;">Creation failed</span>
                    <button class="btn btn-secondary btn-sm" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: var(--danger);" onclick="deleteContainer(${c.id})">Delete</button>` :
-                  `<a style="flex: 1" href="${url}" target="_blank">Visit Site &rarr;</a>
-                   <button class="btn btn-secondary btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="deleteContainer(${c.id})">
+                  `${isRunning ? `<a style="flex: 1" href="${url}" target="_blank">Visit Site &rarr;</a>` : `<span style="flex: 1; display:block; text-align:center; color: var(--text-muted); padding: 0.5rem;">Site Offline</span>`}
+                   ${isRunning ? 
+                     `<button class="btn btn-secondary btn-sm" title="Stop Container" onclick="toggleContainerState(${c.id}, 'stop')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                      </button>` : 
+                     `<button class="btn btn-secondary btn-sm" title="Start Container" onclick="toggleContainerState(${c.id}, 'start')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                      </button>`
+                   }
+                   <button class="btn btn-secondary btn-sm" title="Delete Container" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="deleteContainer(${c.id})">
                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                    </button>`
                 }
@@ -295,5 +318,42 @@ async function executeDelete() {
     } finally {
         btn.classList.remove('loading');
         btn.disabled = false;
+    }
+}
+
+async function toggleContainerState(id, action) {
+    try {
+        // Optimistically reload immediately to show loading state (if we implemented it) or just fetch
+        const res = await fetch(`/api/${action}-container/${id}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${userToken}` }
+        });
+        
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.message || `Failed to ${action} container`);
+        }
+        
+        fetchContainers();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function dismissPassword(id) {
+    try {
+        const res = await fetch(`/api/dismiss-password/${id}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${userToken}` }
+        });
+        
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.message || 'Failed to dismiss password');
+        }
+        
+        fetchContainers();
+    } catch (err) {
+        alert('Error: ' + err.message);
     }
 }

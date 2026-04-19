@@ -37,9 +37,41 @@ async function pullDockerImage(docker, imageName) {
     });
 }
 
+async function execCommand(container, cmdArray) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const exec = await container.exec({
+                Cmd: cmdArray,
+                AttachStdout: true,
+                AttachStderr: true,
+                Tty: false
+            });
+            
+            exec.start(async (err, stream) => {
+                if (err) return reject(err);
+                
+                let output = '';
+                stream.on('data', chunk => output += chunk.toString());
+                
+                stream.on('end', async () => {
+                    const data = await exec.inspect();
+                    if (data.ExitCode !== 0) {
+                        reject(new Error(`Command failed with code ${data.ExitCode}: ${output}`));
+                    } else {
+                        resolve(output);
+                    }
+                });
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
 // Export the Docker utilities
 module.exports = {
     createDockerInstance,
     checkDockerImageExists,
     pullDockerImage,
+    execCommand
 };

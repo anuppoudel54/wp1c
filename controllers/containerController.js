@@ -2,13 +2,19 @@ const pool = require('../config/dbConfig');
 const { generateRandomUsername, generateRandomPassword } = require('../utils/randomUtils');
 const { createDatabaseAndUserForInstance, deleteDatabaseAndUserForInstance } = require('../services/databaseService');
 const { createNginxConfig, deleteNginxConfig } = require('../utils/nginxUtils');
-const { createDockerInstance, checkDockerImageExists, pullDockerImage } = require('../utils/dockerUtils');
+const { createDockerInstance, checkDockerImageExists, pullDockerImage, execCommand } = require('../utils/dockerUtils');
 
 const dbUserLength = 12;
 const passLength = 12;
 
 async function createContainer(req, res) {
     const { hostname } = req.body;
+    
+    // Strict backend validation to prevent path traversal and injection
+    if (!hostname || typeof hostname !== 'string' || !/^[a-z0-9-]+$/.test(hostname)) {
+        return res.status(400).json({ message: 'Invalid hostname. Only lowercase alphanumeric characters and hyphens are allowed.' });
+    }
+    
     const imageName = 'wordpress:latest';
     const userId = req.user.id;
 
@@ -44,6 +50,7 @@ async function runBackgroundCreation(hostname, imageName, recordId) {
     const dbUsername = generateRandomUsername(hostname, dbUserLength);
     const dbPassword = generateRandomPassword(passLength);
     const databaseName = `${hostname}_db`;
+    const wpAdminPassword = generateRandomPassword(16);
     
     try {
         const docker = createDockerInstance();
@@ -60,9 +67,28 @@ async function runBackgroundCreation(hostname, imageName, recordId) {
 
         if (container) {
             const ports = await getContainerPortDetails(container);
-            await pool.execute('UPDATE containers SET container_id = ?, ports = ? WHERE id = ?', [container.id, ports, recordId]);
+            
+            // Wait for DB and Apache to initialize
+            console.log(`Waiting 15 seconds for ${hostname} to initialize...`);
+            await new Promise(r => setTimeout(r, 15000));
+            
+            // Install WP-CLI and run auto-install
+            console.log(`Running auto-install for ${hostname}...`);
+            await execCommand(container, ['sh', '-c', 'curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp']);
+            
+            await execCommand(container, [
+                'wp', 'core', 'install',
+                `--url=http://${hostname}.wp.local`,
+                `--title=${hostname}`,
+                '--admin_user=admin',
+                `--admin_password=${wpAdminPassword}`,
+                `--admin_email=admin@${hostname}.wp.local`,
+                '--allow-root'
+            ]);
+            
+            await pool.execute('UPDATE containers SET container_id = ?, ports = ?, wp_admin_password = ? WHERE id = ?', [container.id, ports, wpAdminPassword, recordId]);
             createNginxConfig(hostname, docker);
-            console.log('Background container created successfully', { containerId: container.id, ports });
+            console.log('Background container created and installed successfully', { containerId: container.id, ports });
         } else {
             throw new Error('Docker container creation returned null');
         }
@@ -84,6 +110,7 @@ async function createDockerContainer(docker, imageName, hostname, databaseName, 
         name: hostname,
         HostConfig: {
             NetworkMode: 'wp1c_wp',
+            Binds: [`wp_data_${hostname}:/var/www/html/wp-content`]
         },
         Env: [
             `WORDPRESS_DB_NAME=${databaseName}`,
@@ -129,8 +156,40 @@ async function getContainerPortDetails(container) {
 async function getMyContainers(req, res) {
     try {
         const userId = req.user.id;
-        const [rows] = await pool.execute('SELECT id, hostname, container_id, ports, created_at FROM containers WHERE user_id = ? ORDER BY created_at DESC', [userId]);
-        res.json({ containers: rows });
+        const [rows] = await pool.execute('SELECT id, hostname, container_id, ports, wp_admin_password, created_at FROM containers WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+        
+        const docker = createDockerInstance();
+        
+        // Fetch all containers from docker in a single request for performance
+        const allDockerContainers = await new Promise((resolve, reject) => {
+            docker.listContainers({ all: true }, (err, containers) => {
+                if (err) reject(err);
+                else resolve(containers || []);
+            });
+        });
+        
+        // Create a lookup map for instant status resolution
+        const statusMap = {};
+        for (const dc of allDockerContainers) {
+            statusMap[dc.Id] = dc.State;
+        }
+        
+        // Map live status to our database rows
+        const containersWithStatus = rows.map((row) => {
+            let status = 'unknown';
+            if (row.container_id === 'pending') {
+                status = 'pending';
+            } else if (row.container_id === 'failed') {
+                status = 'failed';
+            } else if (row.container_id) {
+                // Docker listContainers usually returns a 64 char ID, matching our DB
+                // If it's missing from the map, it was deleted manually from docker
+                status = statusMap[row.container_id] || 'missing';
+            }
+            return { ...row, status };
+        });
+        
+        res.json({ containers: containersWithStatus });
     } catch (error) {
         console.error('Error fetching containers:', error);
         res.status(500).json({ message: 'Failed to fetch containers' });
@@ -170,12 +229,25 @@ async function deleteContainer(req, res) {
                     if (e.startsWith('WORDPRESS_DB_USER=')) dbUser = e.split('=')[1];
                 }
                 
-                await container.stop();
+                try {
+                    await container.stop();
+                } catch (stopErr) {
+                    // Ignore error if already stopped (304 Not Modified)
+                }
                 await container.remove();
                 
                 if (dbUser) {
                     await deleteDatabaseAndUserForInstance(null, dbUser);
                 }
+                
+                // Remove the named volume to completely clean up storage
+                try {
+                    const volume = docker.getVolume(`wp_data_${containerRecord.hostname}`);
+                    await volume.remove();
+                } catch (volErr) {
+                    console.error('Error removing volume:', volErr);
+                }
+                
             } catch (err) {
                 console.error('Error stopping/removing docker container or dropping user:', err);
             }
@@ -191,4 +263,57 @@ async function deleteContainer(req, res) {
     }
 }
 
-module.exports = { createContainer, getMyContainers, deleteContainer };
+async function stopContainer(req, res) {
+    const { id } = req.params;
+    const userId = req.user.id;
+    try {
+        const [rows] = await pool.execute('SELECT container_id FROM containers WHERE id = ? AND user_id = ?', [id, userId]);
+        if (rows.length === 0 || !rows[0].container_id || rows[0].container_id === 'pending' || rows[0].container_id === 'failed') {
+            return res.status(404).json({ message: 'Container not found or cannot be stopped' });
+        }
+        
+        const docker = createDockerInstance();
+        const container = docker.getContainer(rows[0].container_id);
+        await container.stop();
+        res.json({ message: 'Container stopped successfully' });
+    } catch (error) {
+        console.error('Error stopping container:', error);
+        res.status(500).json({ message: 'Failed to stop container' });
+    }
+}
+
+async function startContainer(req, res) {
+    const { id } = req.params;
+    const userId = req.user.id;
+    try {
+        const [rows] = await pool.execute('SELECT container_id FROM containers WHERE id = ? AND user_id = ?', [id, userId]);
+        if (rows.length === 0 || !rows[0].container_id || rows[0].container_id === 'pending' || rows[0].container_id === 'failed') {
+            return res.status(404).json({ message: 'Container not found or cannot be started' });
+        }
+        
+        const docker = createDockerInstance();
+        const container = docker.getContainer(rows[0].container_id);
+        await container.start();
+        res.json({ message: 'Container started successfully' });
+    } catch (error) {
+        console.error('Error starting container:', error);
+        res.status(500).json({ message: 'Failed to start container' });
+    }
+}
+
+async function dismissPassword(req, res) {
+    const { id } = req.params;
+    const userId = req.user.id;
+    try {
+        const [result] = await pool.execute('UPDATE containers SET wp_admin_password = NULL WHERE id = ? AND user_id = ?', [id, userId]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Container not found or unauthorized' });
+        }
+        res.json({ message: 'Password dismissed successfully' });
+    } catch (error) {
+        console.error('Error dismissing password:', error);
+        res.status(500).json({ message: 'Failed to dismiss password' });
+    }
+}
+
+module.exports = { createContainer, getMyContainers, deleteContainer, stopContainer, startContainer, dismissPassword };
